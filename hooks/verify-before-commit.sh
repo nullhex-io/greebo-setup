@@ -4,7 +4,7 @@
 # command appears in recent transcript, preventing another b510c6a-class bug.
 #
 # Skips: docs/chore/ci/style commits, --amend, merges, [skip-verify] bypass.
-# Added: 2026-04-12 after audit showed 18% fix rate on coachsync, 33% on mobile.
+# Added: 2026-04-12 after audits showed unverified commits shipping bugs.
 
 INPUT=$(cat)
 

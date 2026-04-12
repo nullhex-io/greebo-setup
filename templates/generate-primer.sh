@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Generate SESSION_PRIMER.md for CoachSync
+# Generate SESSION_PRIMER.md for any project
 # Gives new Claude sessions a quick resume context without full codebase exploration
 #
 # Usage: ./scripts/generate-primer.sh
@@ -16,7 +16,7 @@ TODAY=$(date '+%Y-%m-%d')
 DAYS=${PRIMER_DAYS:-7}
 
 cat > "$OUT" << HEADER
-# CoachSync Session Primer
+# Session Primer
 
 Generated: ${NOW}
 Read this instead of running /rlm-explore. Only explore when auditing for unknown issues.
@@ -152,6 +152,6 @@ echo "- Tests: ${TEST_COUNT}" >> "$OUT"
 
 echo "" >> "$OUT"
 echo "---" >> "$OUT"
-echo "*For deep analysis or unknown-bug hunting, use \`/rlm-explore coachsync\`. This primer covers resume context only.*" >> "$OUT"
+echo "*For deep analysis or unknown-bug hunting, use \`/rlm-explore\`. This primer covers resume context only.*" >> "$OUT"
 
 echo "Primer generated: ${OUT}"
