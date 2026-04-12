@@ -108,7 +108,7 @@ function extractPattern(toolName, toolInput) {
  * 3. Fall back to npx (returns empty string)
  */
 function resolveCliPath() {
-  let cliPath = "/home/matt/.nvm/versions/node/v24.14.0/lib/node_modules/gitnexus/dist/cli/index.js";
+  let cliPath = require('os').homedir() + "/.nvm/versions/node/v24.14.0/lib/node_modules/gitnexus/dist/cli/index.js";
   if (!fs.existsSync(cliPath)) {
     try {
       cliPath = require.resolve('gitnexus/dist/cli/index.js');

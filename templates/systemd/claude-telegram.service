@@ -1,0 +1,19 @@
+[Unit]
+Description=Claude Code Telegram channel
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+KillMode=control-group
+KillSignal=SIGTERM
+Environment=PATH=/usr/local/bin:%h/.local/bin:%h/.bun/bin:/usr/bin:/bin
+Environment=HOME=%h
+Environment=TERM=xterm-256color
+WorkingDirectory=%h/dev
+ExecStart=%h/.local/bin/claude-telegram
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=default.target

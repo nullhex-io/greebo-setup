@@ -1,0 +1,27 @@
+# Greebo cron template
+# Install with: crontab -e (then paste relevant lines)
+# All paths use $HOME - replace with your actual home directory when installing
+
+# Hourly briefing generation
+0 * * * * $HOME/dev/memory/engine/thinking_loop.sh >> /tmp/thinking-loop.log 2>&1
+
+# Memory freshness scan (every 4h)
+0 */4 * * * $HOME/dev/memory-freshness/scan.sh >> /tmp/memory-freshness.log 2>&1
+
+# Dream consolidation (3 AM - nightly memory synthesis)
+0 3 * * * $HOME/dev/memory/engine/dream-consolidation.sh >> /tmp/claude-dream.log 2>&1
+
+# Memory lint (5 AM - structural health check)
+0 5 * * * $HOME/dev/memory/engine/lint-memories.sh >> /tmp/memory-lint.log 2>&1
+
+# Morning briefing trigger (9:30 AM local) - optional, requires PA MCP
+# 30 9 * * * $HOME/dev/your-pa/cron/morning-briefing-trigger.sh >> /tmp/morning.log 2>&1
+
+# Evening briefing (9 PM local) - optional, requires PA MCP
+# 0 21 * * * $HOME/dev/your-pa/cron/evening-briefing-trigger.sh >> /tmp/evening.log 2>&1
+
+# Plugin update check (6 AM) - optional
+# 0 6 * * * $HOME/.local/bin/check-plugin-updates >> /tmp/plugin-updates.log 2>&1
+
+# PA system backup (every 4h) - optional, requires PA MCP
+# 0 */4 * * * $HOME/.local/bin/backup-pa-system >> /tmp/pa-backup.log 2>&1
