@@ -89,6 +89,7 @@ When spawning subagents, never write "based on your findings, fix it" or "based 
 ## Two-Agent Review
 After completing a feature branch or significant implementation:
 1. Use a worktree agent (`isolation: "worktree"`) as a second reviewer
-2. The reviewer's mission: verify correctness, edge cases, test coverage, and whether verification criteria actually pass
-3. Reviewer should run tests and check the diff, not just read code
-4. Mandatory for multi-step feature work and branch completions. Recommended for smaller tasks.
+2. Use a different model for the reviewer (`model: "sonnet"`) to reduce correlated bias - same-model review shares blind spots
+3. The reviewer's mission: verify correctness, edge cases, test coverage, and whether verification criteria actually pass
+4. Reviewer should run tests and check the diff, not just read code
+5. Mandatory for multi-step feature work and branch completions. Recommended for smaller tasks.

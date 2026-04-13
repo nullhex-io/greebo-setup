@@ -58,6 +58,10 @@ fi
 touch "$LOCK_FILE"
 echo "Dream: Starting consolidation (${SESSION_COUNT} sessions since last run)..."
 
+# Create archive directory for soft-deleted memories
+ARCHIVE_DIR="$MEMORY_ROOT/.archive"
+mkdir -p "$ARCHIVE_DIR"
+
 # Get recent session IDs for context
 if [ -f "$LAST_RUN_FILE" ]; then
   RECENT_SESSIONS=$(find "$TRANSCRIPT_DIR" -maxdepth 1 -name "*.jsonl" -newer "$LAST_RUN_FILE" 2>/dev/null | \
@@ -114,7 +118,7 @@ Read the freshness report at $FRESHNESS_REPORT (if it exists). For each stale me
 - Check if its claims are still true (grep codebase, check git, verify files exist)
 - If still accurate: update the verified date in frontmatter to today
 - If outdated: fix the content, then update verified date
-- If obsolete: delete the file and remove from MEMORY.md index
+- If obsolete: move the file to $ARCHIVE_DIR/ (e.g. `mv file.md $ARCHIVE_DIR/file.md`) and remove from MEMORY.md index. NEVER hard-delete memory files.
 
 This is the highest-priority phase. Stale memories cause wrong decisions in future sessions.
 
@@ -133,8 +137,8 @@ Read the lint report at $HOME/dev/memory/lint-report.md (if it exists). Address 
 Then do a semantic pass across memories you read:
 - **Contradictions**: If memory A says "X is retired" but memory B still references X as active, fix B.
 - **Missing cross-refs**: If two memories discuss the same entity (a project, tool, person) but don't reference each other, add a link or mention.
-- **Orphan cleanup**: If a memory file exists but isn't in MEMORY.md, either add it to the index or delete it.
-- **Near-duplicates**: If two memories cover the same topic, merge them into one and delete the other.
+- **Orphan cleanup**: If a memory file exists but isn't in MEMORY.md, either add it to the index or move it to $ARCHIVE_DIR/.
+- **Near-duplicates**: If two memories cover the same topic, merge them into one and move the other to $ARCHIVE_DIR/.
 
 ## Phase 5 - Consolidate (ingest ripple)
 
@@ -167,6 +171,9 @@ claude -p "$(cat "$PROMPT_FILE")" \
   < /dev/null 2>&1 || true
 
 rm -f "$PROMPT_FILE"
+
+# Rotate archive - purge files older than 30 days
+find "$ARCHIVE_DIR" -name "*.md" -mtime +30 -delete 2>/dev/null || true
 
 # Update last run timestamp
 date +%s > "$LAST_RUN_FILE"
