@@ -18,7 +18,7 @@ process.stdin.on('end',()=>{
 
 # Check for destructive patterns
 if echo "$CMD" | grep -qP '(rm\s+-rf|rm\s+-r|rmdir|drop\s+table|drop\s+database|truncate\s+table|git\s+reset\s+--hard|git\s+push\s+--force|git\s+push\s+-f|git\s+clean\s+-f|systemctl\s+stop|kill\s+-9|pkill|docker\s+rm|docker\s+system\s+prune)'; then
-  LOG_DIR="$HOME/dev/memory/hook-logs"
+  LOG_DIR="$HOME/dev/infra/memory/hook-logs"
   AUDIT_FILE="$LOG_DIR/destructive-audit.jsonl"
   mkdir -p "$LOG_DIR"
 

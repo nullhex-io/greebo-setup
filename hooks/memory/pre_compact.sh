@@ -15,7 +15,7 @@ if [ -f "$STATUS" ]; then
     echo "Current status before compaction:"
     cat "$STATUS"
     echo ""
-    echo "IMPORTANT: Before this conversation is compressed, update ~/dev/memory/status.md with:"
+    echo "IMPORTANT: Before this conversation is compressed, update ~/dev/infra/memory/status.md with:"
     echo "- What you were working on"
     echo "- What's done and what's remaining"
     echo "- Any decisions or context that should carry forward"

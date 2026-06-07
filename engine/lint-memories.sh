@@ -12,13 +12,13 @@
 # Deep semantic lint (contradictions, cross-refs) is handled by dream consolidation.
 #
 # Install:
-#   0 5 * * * $HOME/dev/memory/engine/lint-memories.sh >> /tmp/memory-lint.log 2>&1
+#   0 5 * * * $HOME/dev/infra/memory/engine/lint-memories.sh >> /tmp/memory-lint.log 2>&1
 
 set -euo pipefail
 
 MEMORY_DIR="$HOME/.claude/projects/-home-$(whoami)-dev/memory"
 INDEX="$MEMORY_DIR/MEMORY.md"
-REPORT="$HOME/dev/memory/lint-report.md"
+REPORT="$HOME/dev/infra/memory/lint-report.md"
 NOW_EPOCH=$(date +%s)
 STALE_DAYS=14
 

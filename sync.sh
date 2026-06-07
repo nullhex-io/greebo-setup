@@ -94,7 +94,7 @@ done
 echo ""
 echo "Memory hooks:"
 
-MEMORY_HOOKS_DIR="$HOME/dev/memory/hooks"
+MEMORY_HOOKS_DIR="$HOME/dev/infra/memory/hooks"
 if [ -d "$MEMORY_HOOKS_DIR" ] || ! $CHECK_ONLY; then
     for f in "$REPO_DIR"/hooks/memory/*.sh; do
         [ -f "$f" ] || continue

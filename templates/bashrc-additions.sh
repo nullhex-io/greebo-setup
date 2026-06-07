@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Greebo bashrc additions
 # Source this from ~/.bashrc or copy the functions you want:
-#   source ~/dev/greebo-setup/templates/bashrc-additions.sh
+#   source ~/dev/projects/greebo-setup/templates/bashrc-additions.sh
 
 # Prevent Claude Code terminal flicker
 export CLAUDE_CODE_NO_FLICKER=1

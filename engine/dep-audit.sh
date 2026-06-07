@@ -2,14 +2,14 @@
 # dep-audit.sh - Weekly dependency vulnerability scan
 # Checks npm audit for all active projects, writes report, alerts on HIGH+
 #
-# Install: 0 6 * * 1 $HOME/dev/memory/engine/dep-audit.sh >> /tmp/dep-audit.log 2>&1
+# Install: 0 6 * * 1 $HOME/dev/infra/memory/engine/dep-audit.sh >> /tmp/dep-audit.log 2>&1
 
 set -uo pipefail
 
-REPORT="$HOME/dev/memory/dep-audit-report.md"
+REPORT="$HOME/dev/infra/memory/dep-audit-report.md"
 
 # Load env for Telegram alerting (optional)
-ENV_FILE="$HOME/dev/memory/thinking_loop.env"
+ENV_FILE="$HOME/dev/infra/memory/thinking_loop.env"
 [ -f "$ENV_FILE" ] && source "$ENV_FILE"
 
 # Projects to audit (must have package.json)
@@ -97,7 +97,7 @@ echo "[$(date)] Dep audit: $TOTAL_CRITICAL critical, $TOTAL_HIGH high. Report at
 
 # Alert via Telegram if critical or high vulns found
 if [ $((TOTAL_CRITICAL + TOTAL_HIGH)) -gt 0 ] && [ -n "${TELEGRAM_BOT_TOKEN:-}" ] && [ -n "${TELEGRAM_CHAT_ID:-}" ]; then
-  MSG="Dep audit: $TOTAL_CRITICAL critical, $TOTAL_HIGH high vulnerabilities found. Check ~/dev/memory/dep-audit-report.md"
+  MSG="Dep audit: $TOTAL_CRITICAL critical, $TOTAL_HIGH high vulnerabilities found. Check ~/dev/infra/memory/dep-audit-report.md"
   curl -s "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
     -d "chat_id=${TELEGRAM_CHAT_ID}" \
     -d "text=${MSG}" > /dev/null 2>&1 || true

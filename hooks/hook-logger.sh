@@ -4,7 +4,7 @@
 # Log rotation: files per day, keep 14 days.
 
 INPUT=$(cat)
-LOG_DIR="$HOME/dev/memory/hook-logs"
+LOG_DIR="$HOME/dev/infra/memory/hook-logs"
 LOG_FILE="$LOG_DIR/$(date +%Y-%m-%d).jsonl"
 
 # Extract fields from hook input

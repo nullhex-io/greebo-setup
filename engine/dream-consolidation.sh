@@ -6,7 +6,7 @@
 # Gates: 24h since last run + 5+ sessions since last consolidation.
 #
 # Install: Add to cron alongside thinking loop
-#   0 3 * * * $HOME/dev/memory/engine/dream-consolidation.sh
+#   0 3 * * * $HOME/dev/infra/memory/engine/dream-consolidation.sh
 #
 # Or run manually: ./dream-consolidation.sh
 
@@ -72,10 +72,10 @@ else
 fi
 
 # Generate fresh staleness report before dreaming (optional - depends on your setup)
-if [ -d "$HOME/dev/memory-freshness" ]; then
-  cd "$HOME/dev/memory-freshness" && bun src/index.ts --briefing --no-telegram 2>/dev/null || true
+if [ -d "$HOME/dev/infra/memory-freshness" ]; then
+  cd "$HOME/dev/infra/memory-freshness" && bun src/index.ts --briefing --no-telegram 2>/dev/null || true
 fi
-FRESHNESS_REPORT="$HOME/dev/memory/freshness-report.md"
+FRESHNESS_REPORT="$HOME/dev/infra/memory/freshness-report.md"
 
 PROMPT_FILE=$(mktemp /tmp/dream-prompt-XXXXXX.md)
 cat > "$PROMPT_FILE" << PROMPT_EOF
@@ -132,7 +132,7 @@ Don't exhaustively search. Look only for things you already suspect matter.
 
 ## Phase 4 - Lint: cross-references and contradictions
 
-Read the lint report at $HOME/dev/memory/lint-report.md (if it exists). Address any errors first, then warnings.
+Read the lint report at $HOME/dev/infra/memory/lint-report.md (if it exists). Address any errors first, then warnings.
 
 Then do a semantic pass across memories you read:
 - **Contradictions**: If memory A says "X is retired" but memory B still references X as active, fix B.

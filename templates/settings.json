@@ -81,7 +81,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$HOME/dev/memory/hooks/pre_message.sh\""
+            "command": "bash \"$HOME/dev/infra/memory/hooks/pre_message.sh\""
           }
         ]
       },

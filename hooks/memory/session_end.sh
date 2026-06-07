@@ -9,4 +9,4 @@ ENGINE="$SCRIPT_DIR/engine/memory_engine.py"
 python3 "$ENGINE" flush 2>/dev/null
 
 # Reminder to update status (output goes to Claude as prompt)
-echo "Remember: update ~/dev/memory/status.md with what you were working on."
+echo "Remember: update ~/dev/infra/memory/status.md with what you were working on."
