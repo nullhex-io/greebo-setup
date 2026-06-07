@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # Thinking loop - runs hourly via cron
-# Generates ~/dev/memory/briefing.md for SessionStart hook
+# Generates ~/dev/infra/memory/briefing.md for SessionStart hook
 set -uo pipefail
 trap '' PIPE
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-BRIEFING="$HOME/dev/memory/briefing.md"
+BRIEFING="$HOME/dev/infra/memory/briefing.md"
 MEMORY_DIR="$HOME/.claude/projects/-home-$(whoami)-dev/memory"
 
 # Load secrets from env file
-ENV_FILE="$HOME/dev/memory/thinking_loop.env"
+ENV_FILE="$HOME/dev/infra/memory/thinking_loop.env"
 if [ -f "$ENV_FILE" ]; then
   # shellcheck disable=SC1090
   source "$ENV_FILE"
@@ -137,36 +137,33 @@ echo "- claude-telegram: $TG_STATUS"
 echo ""
 
 # --- MEMORY (CORTEX) ---
-echo "## Memory Health (Cortex)"
+echo "## Memory Health (GBrain)"
 echo ""
 
-CORTEX_STATS=$(psql -h localhost -p 5432 -d cortex -t -A -c "
+# Migrated 2026-05-17 from cortex psql to gbrain stats.
+GBRAIN_STATS=$(psql -h localhost -p 5432 -d gbrain -t -A -c "
 SELECT json_build_object(
-  'total', (SELECT COUNT(*) FROM memories),
-  'episodic', (SELECT COUNT(*) FROM memories WHERE store_type='episodic'),
-  'semantic', (SELECT COUNT(*) FROM memories WHERE store_type='semantic'),
-  'entities', (SELECT COUNT(*) FROM entities),
-  'relationships', (SELECT COUNT(*) FROM relationships),
-  'avg_heat', ROUND((SELECT AVG(heat) FROM memories)::numeric, 3),
-  'protected', (SELECT COUNT(*) FROM memories WHERE is_protected=true),
-  'stale', (SELECT COUNT(*) FROM memories WHERE is_stale=true),
-  'has_vector', (SELECT COUNT(*) > 0 FROM memories WHERE embedding IS NOT NULL)
+  'pages', (SELECT COUNT(*) FROM pages),
+  'chunks', (SELECT COUNT(*) FROM content_chunks),
+  'embedded', (SELECT COUNT(*) FROM content_chunks WHERE embedding IS NOT NULL),
+  'links', (SELECT COUNT(*) FROM links),
+  'timeline_entries', (SELECT COUNT(*) FROM timeline_entries),
+  'sources', (SELECT COUNT(*) FROM sources)
 );" 2>/dev/null)
 
-if [ -n "$CORTEX_STATS" ]; then
+if [ -n "$GBRAIN_STATS" ]; then
   echo '```'
-  echo "$CORTEX_STATS" | python3 -c "
+  echo "$GBRAIN_STATS" | python3 -c "
 import sys, json
 d = json.load(sys.stdin)
-print(f\"Memories: {d['total']} ({d['episodic']} episodic, {d['semantic']} semantic)\")
-print(f\"Entities: {d['entities']}, Relationships: {d['relationships']}\")
-print(f\"Avg heat: {d['avg_heat']}, Protected: {d['protected']}, Stale: {d['stale']}\")
-print(f\"Vector search: {'yes' if d['has_vector'] else 'no'}\")
+print(f\"Pages: {d['pages']}, Chunks: {d['chunks']} ({d['embedded']} embedded)\")
+print(f\"Links: {d['links']}, Timeline entries: {d['timeline_entries']}\")
+print(f\"Sources: {d['sources']}\")
 " 2>/dev/null
   echo '```'
 else
   echo '```'
-  echo "Could not query Cortex database"
+  echo "Could not query GBrain database"
   echo '```'
 fi
 echo ""
@@ -175,11 +172,8 @@ echo ""
 echo "## Attention Needed"
 echo ""
 
-# Check Cortex for stale memories
-STALE_COUNT=$(psql -h localhost -p 5432 -d cortex -t -A -c "SELECT COUNT(*) FROM memories WHERE is_stale=true;" 2>/dev/null || echo "0")
-if [ "$STALE_COUNT" -gt 0 ]; then
-  echo "- $STALE_COUNT stale memories in Cortex (run consolidation)"
-fi
+# Memory staleness check removed 2026-05-17 (cortex retired). GBrain handles
+# staleness via dream cycle's lint/orphans phases — no separate alert needed.
 
 # Disk usage
 DISK_USAGE=$(df -h "$HOME" | tail -1 | awk '{print $5}')
@@ -201,7 +195,15 @@ echo ""
 
 # Two-pronged search: accounts we follow + topics we care about
 # XAI_API_KEY can be set in thinking_loop.env
+# Cost control (2026-06-07): agentic x_search bills $5/1k internal tool
+# invocations; one uncapped broad query fanned out to ~12 (~$0.10/call), and
+# running hourly that was ~$3.4/day - the 2026-06-04 credit exhaustion. Now:
+# live scan only at 09:00/20:00 (cached in between), max_turns capped at 4,
+# per-call cost logged to xai-cost.log.
 if [ -n "${XAI_API_KEY:-}" ]; then
+
+  FEED_CACHE="$HOME/dev/infra/memory/.ai-feed-cache.md"
+  XAI_COST_LOG="$HOME/dev/infra/logs/cron/xai-cost.log"
 
   # Sanitize external content to prevent prompt injection
   sanitize_external() {
@@ -221,57 +223,112 @@ print(text[:1500])
 " 2>/dev/null
   }
 
-  # Helper: run a Grok x_search query, extract and sanitize text
+  # Helper: run a Grok x_search query (agentic loop capped at 4 turns),
+  # extract and sanitize text, log the billed cost. Uncapped this fanned out
+  # to ~12 billable searches/call ($0.0975 measured); capped = $0.043 measured.
   grok_search() {
-    local query="$1"
-    curl -s --max-time 45 "https://api.x.ai/v1/responses" \
-      -H "Authorization: Bearer $XAI_API_KEY" \
-      -H "Content-Type: application/json" \
-      -d "$(python3 -c "
-import json
+    local query="$1" label="$2" resp_file
+    resp_file=$(mktemp /tmp/grok-feed-XXXXXX.json)
+    QUERY="$query" python3 -c "
+import json, os
 print(json.dumps({
     'model': 'grok-4-fast-non-reasoning',
     'stream': False,
-    'input': [{'role': 'user', 'content': '''$query'''}],
+    'max_turns': 4,
+    'input': [{'role': 'user', 'content': os.environ['QUERY']}],
     'tools': [{'type': 'x_search'}]
 }))
-")" 2>/dev/null | python3 -c "
-import sys, json
+" | curl -s --max-time 60 "https://api.x.ai/v1/responses" \
+      -H "Authorization: Bearer $XAI_API_KEY" \
+      -H "Content-Type: application/json" \
+      --data-binary @- > "$resp_file"
+    # Extract text for the briefing; append billed cost to the cost log.
+    # stderr is left open on purpose - tracebacks land in thinking-loop.log,
+    # not in briefing.md (command substitution captures stdout only).
+    LABEL="$label" COST_LOG="$XAI_COST_LOG" python3 - "$resp_file" <<'PYEOF' | sanitize_external
+import sys, json, os, datetime
 try:
-    data = json.load(sys.stdin)
-    for item in data.get('output', []):
-        if 'content' in item:
-            for c in item['content']:
-                if c.get('type') == 'output_text':
-                    print(c['text'][:2000])
-                    break
-except:
-    print('Could not fetch results')
-" 2>/dev/null | sanitize_external
+    data = json.load(open(sys.argv[1]))
+except Exception:
+    print('Could not fetch results'); raise SystemExit
+usage = data.get('usage') or {}
+ticks = usage.get('cost_in_usd_ticks')
+if ticks is not None:
+    calls = (usage.get('server_side_tool_usage_details') or {}).get('x_search_calls', '?')
+    ts = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    try:
+        with open(os.environ['COST_LOG'], 'a') as f:
+            f.write(f"{ts} thinking_loop/{os.environ['LABEL']} x_search_calls={calls} cost_usd={ticks/1e10:.4f}\n")
+    except OSError as e:
+        print(f'xai cost log write failed: {e}', file=sys.stderr)
+if data.get('error'):
+    print('Could not fetch results'); raise SystemExit
+for item in data.get('output', []):
+    if 'content' in item:
+        for c in item['content']:
+            if c.get('type') == 'output_text':
+                print(c['text'][:2000])
+                break
+PYEOF
+    rm -f "$resp_file"
   }
 
-  # Search 1: Account-based - what are people we follow saying?
-  # Customize these accounts in the query below
-  echo "### Followed accounts"
-  ACCOUNTS_FEED=$(grok_search "Search X for the most interesting posts from the last 24 hours by @claudeai @karpathy. Top 5 bullet points with account, brief summary, and link.") || ACCOUNTS_FEED="Could not fetch"
-  echo "$ACCOUNTS_FEED"
-  echo ""
+  # Cost gate: live X scan only when the output is actually consumed - the
+  # 09:30 morning briefing reads the 09:00 run, the 21:00 evening briefing
+  # reads the 20:00 run. All other hours reuse the cached scan. Also goes live
+  # if the cache is missing/older than 24h, or with FORCE_AI_FEED=1.
+  FEED_HOUR=$(date +%H)
+  feed_live=0
+  if [ "$FEED_HOUR" = "09" ] || [ "$FEED_HOUR" = "20" ] || [ "${FORCE_AI_FEED:-0}" = "1" ]; then
+    feed_live=1
+  elif [ ! -f "$FEED_CACHE" ] || [ -z "$(find "$FEED_CACHE" -mmin -1440 2>/dev/null)" ]; then
+    feed_live=1
+  fi
 
-  # Search 2: Topic-based - what's trending regardless of who posted?
-  echo "### Trending topics"
-  TOPICS_FEED=$(grok_search "Search X for the most interesting posts from the last 24 hours about: Claude Code plugins OR MCP servers OR AI agent memory OR AI coding tools OR knowledge graphs for code OR prompt engineering breakthroughs. Exclude basic tutorials. Only posts with real tools, repos, or novel techniques. Top 5 bullet points with account, summary, and link. Prioritize posts with GitHub links or technical depth.") || TOPICS_FEED="Could not fetch"
-  echo "$TOPICS_FEED"
-  echo ""
+  if [ "$feed_live" = "1" ]; then
+    {
+      # Search 1: Account-based - what are people we follow saying?
+      # Customize these accounts in the query below
+      echo "### Followed accounts"
+      ACCOUNTS_FEED=$(grok_search "Search X for the most interesting posts from the last 24 hours by @claudeai @karpathy. Use at most 2 searches total. Top 5 bullet points with account, brief summary, and link." "accounts") || ACCOUNTS_FEED="Could not fetch"
+      echo "$ACCOUNTS_FEED"
+      echo ""
+
+      # Search 2: Topic-based - what's trending regardless of who posted?
+      # Trimmed 6 OR-topics to 4 (2026-06-07) so the capped turns stay focused.
+      echo "### Trending topics"
+      TOPICS_FEED=$(grok_search "Search X for the most interesting posts from the last 24 hours about: Claude Code plugins OR MCP servers OR AI agent memory OR AI coding tools. Use at most 3 searches total. Exclude basic tutorials. Only posts with real tools, repos, or novel techniques. Top 5 bullet points with account, summary, and link. Prioritize posts with GitHub links or technical depth." "topics") || TOPICS_FEED="Could not fetch"
+      echo "$TOPICS_FEED"
+      echo ""
+      echo "*Scanned $(date '+%Y-%m-%d %H:%M %Z') - live at 09:00/20:00, cached in between.*"
+    } > "${FEED_CACHE}.tmp"
+    # Cache-poison guard (review finding 2026-06-07): promote the new scan
+    # only if at least one prong succeeded; otherwise keep the previous cache
+    # and let a later run retry (failed calls do not bill).
+    feed_ok() { case "$1" in ""|"Could not fetch"*) return 1 ;; *) return 0 ;; esac; }
+    if feed_ok "$ACCOUNTS_FEED" || feed_ok "$TOPICS_FEED"; then
+      mv "${FEED_CACHE}.tmp" "$FEED_CACHE"
+    else
+      rm -f "${FEED_CACHE}.tmp"
+    fi
+    if [ -f "$FEED_CACHE" ]; then
+      cat "$FEED_CACHE"
+    else
+      echo "*X scan fetch failed and no cached scan available - will retry next hour.*"
+    fi
+  else
+    cat "$FEED_CACHE" 2>/dev/null
+  fi
 
 else
-  echo "*AI feed not configured - set XAI_API_KEY in ~/dev/memory/thinking_loop.env*"
+  echo "*AI feed not configured - set XAI_API_KEY in ~/dev/infra/memory/thinking_loop.env*"
 fi
 echo ""
 echo "<!-- END UNTRUSTED EXTERNAL DATA -->"
 echo ""
 
 # --- MEMORY FRESHNESS ---
-cat "$HOME/dev/memory/freshness-report.md" 2>/dev/null
+cat "$HOME/dev/infra/memory/freshness-report.md" 2>/dev/null
 echo ""
 
 echo "---"
